@@ -17,7 +17,6 @@ from questions import QUESTIONS, get_flat_questions
 from report import generate_report
 from database import save_attestation, get_all_attestations, get_count, clear_attestations
 from consolidated_report import generate_consolidated_report
-from email_sender import send_report_email
 
 load_dotenv()
 
@@ -283,29 +282,51 @@ async def send_report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_CHAT_ID:
         await update.message.reply_text("⛔ У вас нет доступа к этой команде.")
         return
-    count = get_count()
-    if count == 0:
+
+    args = context.args
+    show_all = args and args[0].lower() == "all"
+
+    all_attestations = get_all_attestations()
+    count_total = len(all_attestations)
+
+    if count_total == 0:
         await update.message.reply_text("📭 Нет сохранённых аттестаций.")
         return
-    await update.message.reply_text(f"⏳ Формирую сводный отчёт по {count} аттестациям...")
+
+    if show_all:
+        attestations = all_attestations
+    else:
+        attestations = [a for a in all_attestations if a.get("overall_avg", 0) >= 80]
+
+    count_passed = len([a for a in all_attestations if a.get("overall_avg", 0) >= 80])
+    count_failed = count_total - count_passed
+
+    if len(attestations) == 0:
+        await update.message.reply_text(
+            f"📭 Никто ещё не сдал аттестацию.\n\n👥 Всего прошли: {count_total}\n✅ Сдали: 0\n❌ Не сдали: {count_total}"
+        )
+        return
+
+    label = "всем сотрудникам" if show_all else "сдавшим аттестацию"
+    await update.message.reply_text(f"⏳ Формирую отчёт по {label}...")
+
     try:
-        attestations = get_all_attestations()
         report_path = await generate_consolidated_report(attestations)
-        send_report_email(report_path, count)
-        filename = f"Сводный_отчёт_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
+        filename = f"{'Все' if show_all else 'Сдавшие'}_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
         with open(report_path, "rb") as f:
             await context.bot.send_document(
                 chat_id=ADMIN_CHAT_ID, document=f, filename=filename,
                 caption=(
-                    f"📊 *Сводный отчёт аттестации*\n\n👥 Сотрудников: {count}\n"
-                    f"📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}\n"
-                    f"📧 Также отправлен на tamaeva27@gmail.com"
+                    f"📊 *{'Полный отчёт' if show_all else 'Сдавшие аттестацию'}*\n\n"
+                    f"👥 Всего прошли: {count_total}\n"
+                    f"✅ Сдали: {count_passed}\n"
+                    f"❌ Не сдали: {count_failed}"
                 ),
                 parse_mode="Markdown",
             )
         Path(report_path).unlink(missing_ok=True)
         await update.message.reply_text(
-            f"✅ Отчёт по {count} аттестациям отправлен!\n📧 Email: tamaeva27@gmail.com\n\nДля очистки базы: /clear"
+            f"✅ Готово!\n\n/report — только сдавшие\n/report all — все сотрудники\n/clear — очистить базу"
         )
     except Exception as e:
         logger.error(f"Report error: {e}")
@@ -325,9 +346,18 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != ADMIN_CHAT_ID:
         await update.message.reply_text("⛔ У вас нет доступа к этой команде.")
         return
-    count = get_count()
+    all_attestations = get_all_attestations()
+    count_total = len(all_attestations)
+    count_passed = len([a for a in all_attestations if a.get("overall_avg", 0) >= 80])
+    count_failed = count_total - count_passed
     await update.message.reply_text(
-        f"📊 *Статус базы*\n\n👥 Накоплено аттестаций: *{count}*\n\n/report — сводный отчёт на email\n/clear — очистить базу",
+        f"📊 *Статус аттестации*\n\n"
+        f"👥 Всего прошли: *{count_total}*\n"
+        f"✅ Сдали: *{count_passed}*\n"
+        f"❌ Не сдали: *{count_failed}*\n\n"
+        f"/report — отчёт по сдавшим\n"
+        f"/report all — отчёт по всем\n"
+        f"/clear — очистить базу",
         parse_mode="Markdown",
     )
 
