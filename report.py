@@ -2,187 +2,181 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from openpyxl import Workbook
-from openpyxl.styles import (
-    Font, PatternFill, Alignment, Border, Side, GradientFill
-)
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 
-def _make_border(style="thin"):
+def _border(style="thin"):
     s = Side(style=style)
     return Border(left=s, right=s, top=s, bottom=s)
 
-
-def _header_fill(hex_color: str):
+def _fill(hex_color):
     return PatternFill("solid", fgColor=hex_color)
 
 
-async def generate_report(
-    name: str,
-    position: str,
-    answers: list,
-    start_time: str,
-    avg_score: float,
-    verdict: str,
-) -> str:
+async def generate_report(name, position_name, position_key, answers,
+                           competency_avg, overall_avg, verdict, start_time):
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(
-        None, _build_excel, name, position, answers, start_time, avg_score, verdict
+        None, _build_excel, name, position_name, answers,
+        competency_avg, overall_avg, verdict, start_time
     )
 
 
-def _build_excel(name, position, answers, start_time, avg_score, verdict):
+def _build_excel(name, position_name, answers, competency_avg, overall_avg, verdict, start_time):
     wb = Workbook()
 
-    # ── Sheet 1: Summary ──────────────────────────────────────────────────────
-    ws_summary = wb.active
-    ws_summary.title = "Итог"
+    ws1 = wb.active
+    ws1.title = "Итоги по компетенциям"
 
-    # Title
-    ws_summary.merge_cells("A1:F1")
-    title_cell = ws_summary["A1"]
-    title_cell.value = "ОТЧЁТ ПО АТТЕСТАЦИИ СОТРУДНИКА"
-    title_cell.font = Font(name="Arial", bold=True, size=14, color="FFFFFF")
-    title_cell.fill = _header_fill("1F3864")
-    title_cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws_summary.row_dimensions[1].height = 36
+    ws1.merge_cells("A1:F1")
+    c = ws1["A1"]
+    c.value = f"Итоги аттестации — {name} — {position_name}"
+    c.font = Font(name="Arial", bold=True, size=13, color="FFFFFF")
+    c.fill = _fill("1F3864")
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws1.row_dimensions[1].height = 32
 
-    # Info block
-    info_rows = [
-        ("ФИО сотрудника", name),
-        ("Должность", position),
-        ("Дата аттестации", datetime.fromisoformat(start_time).strftime("%d.%m.%Y %H:%M")),
-        ("Количество вопросов", str(len(answers))),
-        ("Средняя оценка", f"{avg_score:.1f} / 10"),
-        ("Результат", verdict.replace("✅", "").replace("⚠️", "").replace("❌", "").strip()),
-    ]
+    ws1.merge_cells("A2:F2")
+    d = ws1["A2"]
+    d.value = f"Дата аттестации: {datetime.fromisoformat(start_time).strftime('%d.%m.%Y %H:%M')}"
+    d.font = Font(name="Arial", size=10, italic=True)
+    d.fill = _fill("D9E1F2")
+    d.alignment = Alignment(horizontal="center", vertical="center")
+    ws1.row_dimensions[2].height = 18
 
-    label_fill = _header_fill("D9E1F2")
-    value_fill = _header_fill("EBF3FB")
-
-    for i, (label, value) in enumerate(info_rows, start=2):
-        lc = ws_summary.cell(row=i, column=1, value=label)
-        lc.font = Font(name="Arial", bold=True, size=11)
-        lc.fill = label_fill
-        lc.alignment = Alignment(horizontal="left", vertical="center", indent=1)
-        lc.border = _make_border()
-
-        ws_summary.merge_cells(f"B{i}:F{i}")
-        vc = ws_summary.cell(row=i, column=2, value=value)
-        vc.font = Font(name="Arial", size=11)
-        vc.fill = value_fill
-        vc.alignment = Alignment(horizontal="left", vertical="center", indent=1)
-        vc.border = _make_border()
-        ws_summary.row_dimensions[i].height = 22
-
-    # Score colour indicator
-    score_row = 6  # "Средняя оценка" is row 6
-    score_cell = ws_summary.cell(row=score_row, column=2)
-    if avg_score >= 8:
-        score_cell.fill = _header_fill("C6EFCE")
-        score_cell.font = Font(name="Arial", size=11, bold=True, color="276221")
-    elif avg_score >= 6:
-        score_cell.fill = _header_fill("FFEB9C")
-        score_cell.font = Font(name="Arial", size=11, bold=True, color="9C6500")
-    else:
-        score_cell.fill = _header_fill("FFC7CE")
-        score_cell.font = Font(name="Arial", size=11, bold=True, color="9C0006")
-
-    # Column widths summary sheet
-    ws_summary.column_dimensions["A"].width = 26
-    for col in ["B", "C", "D", "E", "F"]:
-        ws_summary.column_dimensions[col].width = 22
-
-    # ── Sheet 2: Detailed answers ─────────────────────────────────────────────
-    ws_detail = wb.create_sheet("Подробные ответы")
-
-    # Header row
-    headers = ["№", "Вопрос", "Ответ сотрудника (расшифровка)", "Оценка (1-10)", "Комментарий эксперта", "Рекомендация по развитию"]
-    col_widths = [5, 40, 45, 14, 40, 45]
-
-    for col_idx, (header, width) in enumerate(zip(headers, col_widths), start=1):
-        cell = ws_detail.cell(row=1, column=col_idx, value=header)
+    headers = ["ФИО", "Компетенция", "%", "Сильные стороны", "Зоны развития", "Рекомендации"]
+    col_widths = [28, 26, 8, 38, 38, 42]
+    for col_idx, (h, w) in enumerate(zip(headers, col_widths), start=1):
+        cell = ws1.cell(row=3, column=col_idx, value=h)
         cell.font = Font(name="Arial", bold=True, size=11, color="FFFFFF")
-        cell.fill = _header_fill("1F3864")
+        cell.fill = _fill("2E75B6")
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        cell.border = _make_border()
-        ws_detail.column_dimensions[get_column_letter(col_idx)].width = width
+        cell.border = _border()
+        ws1.column_dimensions[get_column_letter(col_idx)].width = w
+    ws1.row_dimensions[3].height = 28
+    ws1.freeze_panes = "A4"
 
-    ws_detail.row_dimensions[1].height = 36
-    ws_detail.freeze_panes = "A2"
+    comp_rows = {}
+    for a in answers:
+        comp = a["competency"]
+        if comp not in comp_rows:
+            comp_rows[comp] = []
+        comp_rows[comp].append(a)
 
-    # Data rows
-    alt_fill = _header_fill("EBF3FB")
-    white_fill = _header_fill("FFFFFF")
+    row = 4
+    alt = False
+    for comp, items in comp_rows.items():
+        fill_color = "EBF3FB" if not alt else "FFFFFF"
+        alt = not alt
+        first = True
+        for a in items:
+            score_val = round(a["score"])
+            row_data = [
+                name if first else "",
+                a["competency"] if first else "",
+                score_val,
+                a.get("strengths", ""),
+                a.get("weaknesses", ""),
+                a["recommendation"],
+            ]
+            for col_idx, val in enumerate(row_data, start=1):
+                cell = ws1.cell(row=row, column=col_idx, value=val)
+                cell.font = Font(name="Arial", size=10)
+                cell.fill = _fill(fill_color)
+                cell.alignment = Alignment(
+                    horizontal="center" if col_idx in (1, 2, 3) else "left",
+                    vertical="top", wrap_text=True,
+                    indent=0 if col_idx in (1, 2, 3) else 1
+                )
+                cell.border = _border()
+                if col_idx == 3:
+                    if score_val >= 80:
+                        cell.fill = _fill("C6EFCE")
+                        cell.font = Font(name="Arial", size=10, bold=True, color="276221")
+                    elif score_val >= 60:
+                        cell.fill = _fill("FFEB9C")
+                        cell.font = Font(name="Arial", size=10, bold=True, color="9C6500")
+                    else:
+                        cell.fill = _fill("FFC7CE")
+                        cell.font = Font(name="Arial", size=10, bold=True, color="9C0006")
+            ws1.row_dimensions[row].height = 60
+            first = False
+            row += 1
 
-    for row_idx, answer in enumerate(answers, start=2):
-        row_data = [
-            row_idx - 1,
-            answer["question"],
-            answer["transcript"],
-            answer["score"],
-            answer["comment"],
-            answer["recommendation"],
-        ]
-        fill = alt_fill if row_idx % 2 == 0 else white_fill
+        avg_val = round(competency_avg.get(comp, 0))
+        for col_idx in range(1, 7):
+            ws1.cell(row=row, column=col_idx).fill = _fill("D9E1F2")
+            ws1.cell(row=row, column=col_idx).border = _border()
+            ws1.cell(row=row, column=col_idx).alignment = Alignment(horizontal="center", vertical="center")
+        ws1.cell(row=row, column=1, value=name).font = Font(name="Arial", size=10, bold=True)
+        ws1.cell(row=row, column=2, value=comp).font = Font(name="Arial", size=10, bold=True)
+        avg_cell = ws1.cell(row=row, column=3, value=avg_val)
+        ws1.cell(row=row, column=4, value="Средний % по компетенции").font = Font(name="Arial", size=10, italic=True)
+        if avg_val >= 80:
+            avg_cell.fill = _fill("C6EFCE")
+            avg_cell.font = Font(name="Arial", size=10, bold=True, color="276221")
+        elif avg_val >= 60:
+            avg_cell.fill = _fill("FFEB9C")
+            avg_cell.font = Font(name="Arial", size=10, bold=True, color="9C6500")
+        else:
+            avg_cell.fill = _fill("FFC7CE")
+            avg_cell.font = Font(name="Arial", size=10, bold=True, color="9C0006")
+        ws1.row_dimensions[row].height = 20
+        row += 1
 
-        for col_idx, value in enumerate(row_data, start=1):
-            cell = ws_detail.cell(row=row_idx, column=col_idx, value=value)
-            cell.font = Font(name="Arial", size=10)
-            cell.fill = fill
-            cell.alignment = Alignment(
-                horizontal="center" if col_idx in (1, 4) else "left",
-                vertical="top",
-                wrap_text=True,
-                indent=0 if col_idx in (1, 4) else 1,
-            )
-            cell.border = _make_border()
+    ws2 = wb.create_sheet("Сводная таблица")
 
-            # Score colour coding
-            if col_idx == 4:
-                score = answer["score"]
-                if score >= 8:
-                    cell.fill = _header_fill("C6EFCE")
-                    cell.font = Font(name="Arial", size=10, bold=True, color="276221")
-                elif score >= 6:
-                    cell.fill = _header_fill("FFEB9C")
-                    cell.font = Font(name="Arial", size=10, bold=True, color="9C6500")
-                else:
-                    cell.fill = _header_fill("FFC7CE")
-                    cell.font = Font(name="Arial", size=10, bold=True, color="9C0006")
+    ws2.merge_cells("A1:D1")
+    c = ws2["A1"]
+    c.value = "СВОДНАЯ ТАБЛИЦА АТТЕСТАЦИИ"
+    c.font = Font(name="Arial", bold=True, size=13, color="FFFFFF")
+    c.fill = _fill("1F3864")
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws2.row_dimensions[1].height = 32
 
-        ws_detail.row_dimensions[row_idx].height = 80
-
-    # ── Sheet 3: Score chart data ─────────────────────────────────────────────
-    ws_chart = wb.create_sheet("Оценки по вопросам")
-
-    chart_headers = ["Вопрос №", "Оценка", "Максимум"]
-    for col_idx, h in enumerate(chart_headers, start=1):
-        cell = ws_chart.cell(row=1, column=col_idx, value=h)
+    headers2 = ["ФИО", "Средний %", "Статус аттестации", "Общий комментарий"]
+    col_widths2 = [32, 14, 30, 60]
+    for col_idx, (h, w) in enumerate(zip(headers2, col_widths2), start=1):
+        cell = ws2.cell(row=2, column=col_idx, value=h)
         cell.font = Font(name="Arial", bold=True, size=11, color="FFFFFF")
-        cell.fill = _header_fill("1F3864")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = _make_border()
+        cell.fill = _fill("2E75B6")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = _border()
+        ws2.column_dimensions[get_column_letter(col_idx)].width = w
+    ws2.row_dimensions[2].height = 28
 
-    for i, answer in enumerate(answers, start=1):
-        ws_chart.cell(row=i + 1, column=1, value=f"Вопрос {i}").border = _make_border()
-        score_cell = ws_chart.cell(row=i + 1, column=2, value=answer["score"])
-        score_cell.border = _make_border()
-        max_cell = ws_chart.cell(row=i + 1, column=3, value=10)
-        max_cell.border = _make_border()
+    overall_val = round(overall_avg)
+    comp_comments = []
+    for comp, avg in competency_avg.items():
+        avg_r = round(avg)
+        if avg_r >= 80:
+            comp_comments.append(f"{comp}: {avg_r}% ✓")
+        else:
+            comp_comments.append(f"{comp}: {avg_r}% — требует развития")
+    general_comment = " | ".join(comp_comments)
 
-    # Average row
-    last_data_row = len(answers) + 2
-    ws_chart.cell(row=last_data_row, column=1, value="СРЕДНЕЕ").font = Font(name="Arial", bold=True)
-    avg_cell = ws_chart.cell(row=last_data_row, column=2, value=f"=AVERAGE(B2:B{len(answers)+1})")
-    avg_cell.font = Font(name="Arial", bold=True)
-    avg_cell.number_format = "0.0"
-    avg_cell.border = _make_border()
+    row_data = [name, f"{overall_val}%", verdict, general_comment]
+    for col_idx, val in enumerate(row_data, start=1):
+        cell = ws2.cell(row=3, column=col_idx, value=val)
+        cell.font = Font(name="Arial", size=11)
+        cell.alignment = Alignment(
+            horizontal="center" if col_idx in (1, 2, 3) else "left",
+            vertical="center", wrap_text=True,
+            indent=0 if col_idx in (1, 2, 3) else 1
+        )
+        cell.border = _border()
+        if col_idx in (2, 3):
+            if overall_val >= 80:
+                cell.fill = _fill("C6EFCE")
+                cell.font = Font(name="Arial", size=11, bold=True, color="276221")
+            else:
+                cell.fill = _fill("FFC7CE")
+                cell.font = Font(name="Arial", size=11, bold=True, color="9C0006")
+        else:
+            cell.fill = _fill("EBF3FB")
+    ws2.row_dimensions[3].height = 50
 
-    for col in ["A", "B", "C"]:
-        ws_chart.column_dimensions[col].width = 20
-
-    # Save
     output_path = f"/tmp/attestation_{name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     wb.save(output_path)
     return output_path
