@@ -1,22 +1,18 @@
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email.mime.text import MIMEText
-from email import encoders
+import urllib.request
+import json
 from datetime import datetime
+import base64
 
-
-GMAIL_USER = os.getenv("GMAIL_USER")
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
-REPORT_EMAIL = os.getenv("REPORT_EMAIL", "tamaeva27@gmail.com")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+REPORT_EMAIL = os.getenv("REPORT_EMAIL", "gokkaee@gmail.com")
 
 
 def send_report_email(excel_path: str, count: int, date_range: str = ""):
-    msg = MIMEMultipart()
-    msg["From"] = GMAIL_USER
-    msg["To"] = REPORT_EMAIL
-    msg["Subject"] = f"Сводный отчёт аттестации — {datetime.now().strftime('%d.%m.%Y')}"
+    with open(excel_path, "rb") as f:
+        file_content = base64.b64encode(f.read()).decode("utf-8")
+
+    filename = f"Сводный_отчёт_{datetime.now().strftime('%d%m%Y')}.xlsx"
 
     body = f"""Добрый день!
 
@@ -26,18 +22,31 @@ def send_report_email(excel_path: str, count: int, date_range: str = ""):
 Дата формирования: {datetime.now().strftime('%d.%m.%Y %H:%M')}
 {f'Период: {date_range}' if date_range else ''}
 
-Отчёт сформирован автоматически ботом аттестации MDLZ.
-"""
-    msg.attach(MIMEText(body, "plain", "utf-8"))
+Отчёт сформирован автоматически ботом аттестации MDLZ."""
 
-    filename = f"Сводный_отчёт_{datetime.now().strftime('%d%m%Y')}.xlsx"
-    with open(excel_path, "rb") as f:
-        part = MIMEBase("application", "octet-stream")
-        part.set_payload(f.read())
-    encoders.encode_base64(part)
-    part.add_header("Content-Disposition", f"attachment; filename={filename}")
-    msg.attach(part)
+    payload = json.dumps({
+        "from": "Аттестация MDLZ <onboarding@resend.dev>",
+        "to": [REPORT_EMAIL],
+        "subject": f"Сводный отчёт аттестации — {datetime.now().strftime('%d.%m.%Y')}",
+        "text": body,
+        "attachments": [
+            {
+                "filename": filename,
+                "content": file_content,
+            }
+        ],
+    }).encode("utf-8")
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.send_message(msg)
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    with urllib.request.urlopen(req) as response:
+        result = json.loads(response.read().decode("utf-8"))
+        return result
