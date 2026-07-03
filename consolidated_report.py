@@ -33,7 +33,7 @@ def _build_consolidated(attestations: list) -> str:
     ws1 = wb.active
     ws1.title = "Итоги по компетенциям"
 
-    ws1.merge_cells("A1:G1")
+    ws1.merge_cells("A1:H1")
     c = ws1["A1"]
     c.value = f"ИТОГИ АТТЕСТАЦИИ — {datetime.now().strftime('%d.%m.%Y')}"
     c.font = Font(name="Arial", bold=True, size=13, color="FFFFFF")
@@ -41,8 +41,9 @@ def _build_consolidated(attestations: list) -> str:
     c.alignment = Alignment(horizontal="center", vertical="center")
     ws1.row_dimensions[1].height = 32
 
-    headers = ["ФИО", "Должность", "Компетенция", "%", "Сильные стороны", "Зоны развития", "Рекомендации"]
-    col_widths = [30, 28, 26, 8, 40, 40, 45]
+    # Добавлен столбец "Ответ" после "%"
+    headers = ["ФИО", "Должность", "Компетенция", "%", "Ответ", "Сильные стороны", "Зоны развития", "Рекомендации"]
+    col_widths = [30, 28, 26, 8, 50, 40, 40, 45]
     for col_idx, (h, w) in enumerate(zip(headers, col_widths), start=1):
         cell = ws1.cell(row=2, column=col_idx, value=h)
         cell.font = Font(name="Arial", bold=True, size=11, color="FFFFFF")
@@ -68,7 +69,7 @@ def _build_consolidated(attestations: list) -> str:
             by_comp[comp].append(a)
 
         # Person header row
-        ws1.merge_cells(f"A{row}:G{row}")
+        ws1.merge_cells(f"A{row}:H{row}")
         header_cell = ws1.cell(row=row, column=1, value=f"{name}  |  {position}")
         header_cell.font = Font(name="Arial", bold=True, size=11, color="FFFFFF")
         header_cell.fill = _fill("2E4057")
@@ -81,6 +82,8 @@ def _build_consolidated(attestations: list) -> str:
         for comp, avg in competency_avg.items():
             avg_pct = round(avg)
             comp_answers = by_comp.get(comp, [])
+            # Собираем все ответы по компетенции
+            transcripts = " | ".join([a.get("transcript", "") for a in comp_answers if a.get("transcript")])
             strengths = " | ".join([a.get("strengths", "") for a in comp_answers if a.get("strengths")])
             weaknesses = " | ".join([a.get("weaknesses", "") for a in comp_answers if a.get("weaknesses")])
             recommendations = " | ".join([a.get("recommendation", "") for a in comp_answers if a.get("recommendation")])
@@ -90,6 +93,7 @@ def _build_consolidated(attestations: list) -> str:
                 position if first_person else "",
                 comp,
                 f"{avg_pct}%",
+                transcripts,      # Ответ сотрудника
                 strengths,
                 weaknesses,
                 recommendations,
@@ -111,14 +115,14 @@ def _build_consolidated(attestations: list) -> str:
                     cell.fill = score_fill
                     cell.font = Font(name="Arial", size=10, bold=True, color=score_font_color)
 
-            ws1.row_dimensions[row].height = 40
+            ws1.row_dimensions[row].height = 60
             row += 1
             first_person = False
 
         # Average row
         overall = round(att.get("overall_avg", 0))
         avg_fill, avg_font = _score_color(overall)
-        for col_idx in range(1, 8):
+        for col_idx in range(1, 9):
             cell = ws1.cell(row=row, column=col_idx, value="")
             cell.fill = _fill("D9E1F2")
             cell.border = _border()
@@ -134,7 +138,7 @@ def _build_consolidated(attestations: list) -> str:
         row += 1
 
         # Spacer
-        for col_idx in range(1, 8):
+        for col_idx in range(1, 9):
             cell = ws1.cell(row=row, column=col_idx, value="")
             cell.fill = _fill("F2F2F2")
             cell.border = _border()
