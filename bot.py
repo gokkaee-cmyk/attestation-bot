@@ -54,6 +54,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return SELECT_POSITION
 
 
+async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
+    keyboard = [[pos] for pos in POSITIONS.keys()]
+    await update.message.reply_text(
+        "🔄 Аттестация сброшена. Начинаем заново!\n\nПожалуйста, выберите вашу должность:",
+        reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
+    )
+    return SELECT_POSITION
+
+
 async def select_position(update: Update, context: ContextTypes.DEFAULT_TYPE):
     position_name = update.message.text
     if position_name not in POSITIONS:
@@ -170,14 +180,12 @@ async def confirm_transcript(update: Update, context: ContextTypes.DEFAULT_TYPE)
             position=context.user_data["position_name"],
         )
     except Exception as e:
-        # Если все 3 попытки не помогли — просим повторить голосовой ответ
         logger.error(f"Evaluation error after all retries: {e}")
         await update.message.reply_text(
             "⚠️ Произошла техническая ошибка при оценке ответа.\n\n"
             "🎤 Пожалуйста, повторите ваш ответ голосовым сообщением ещё раз.",
             reply_markup=ReplyKeyboardRemove(),
         )
-        # Сохраняем транскрипт чтобы не потерять
         context.user_data["pending_transcript"] = transcript_text
         return CONFIRM_TRANSCRIPT
 
@@ -396,7 +404,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("start", start)],
+        entry_points=[CommandHandler("start", start), CommandHandler("restart", restart)],
         states={
             SELECT_POSITION: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_position)],
             ENTER_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_name)],
@@ -410,7 +418,7 @@ def main():
                 MessageHandler(filters.VOICE, handle_voice),
             ],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[CommandHandler("cancel", cancel), CommandHandler("restart", restart)],
     )
     app.add_handler(conv_handler)
     app.add_handler(CommandHandler("report", send_report))
