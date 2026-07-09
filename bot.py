@@ -11,7 +11,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     filters, ContextTypes, ConversationHandler
 )
-from groq import AsyncGroq
+from openai import AsyncOpenAI
 
 from questions import QUESTIONS, get_flat_questions
 from report import generate_report
@@ -27,10 +27,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
 
-groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 SELECT_POSITION, ENTER_NAME, CONFIRM_NAME, ANSWERING, CONFIRM_TRANSCRIPT = range(5)
 
@@ -135,8 +135,8 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await voice_file.download_to_drive(audio_path)
     try:
         with open(audio_path, "rb") as audio_file:
-            transcription = await groq_client.audio.transcriptions.create(
-                model="whisper-large-v3-turbo",
+            transcription = await openai_client.audio.transcriptions.create(
+                model="whisper-1",
                 file=("audio.ogg", audio_file, "audio/ogg"),
                 language="ru",
             )
@@ -231,8 +231,8 @@ async def evaluate_answer(question: str, competency: str, answer: str, position:
     last_error = None
     for attempt in range(3):
         try:
-            response = await groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            response = await openai_client.chat.completions.create(
+                model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 timeout=30,
@@ -244,7 +244,7 @@ async def evaluate_answer(question: str, competency: str, answer: str, position:
             last_error = e
             logger.warning(f"Attempt {attempt + 1}/3 failed: {e}")
             if attempt < 2:
-                await asyncio.sleep(5)
+                await asyncio.sleep(3)
 
     raise last_error
 
