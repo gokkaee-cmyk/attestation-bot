@@ -170,7 +170,7 @@ async def confirm_transcript(update: Update, context: ContextTypes.DEFAULT_TYPE)
             position=context.user_data["position_name"],
         )
     except Exception as e:
-        logger.error(f"Evaluation error: {e}")
+        logger.error(f"Evaluation error after all retries: {e}")
         evaluation = {"score": 0, "strengths": "", "weaknesses": "", "recommendation": "Ошибка оценки"}
     context.user_data["answers"].append({
         "competency": item["competency"],
@@ -211,14 +211,26 @@ async def evaluate_answer(question: str, competency: str, answer: str, position:
 Критерии: 90-100 отличный, 75-89 хороший, 60-74 средний, 40-59 слабый, 0-39 неудовлетворительный.
 Если вопрос не требует примера из жизни — не снижай балл за его отсутствие."""
 
-    response = await groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-    )
-    raw = response.choices[0].message.content.strip()
-    raw = raw.replace("```json", "").replace("```", "").strip()
-    return json.loads(raw)
+    # Повторные попытки: 3 раза с паузой между ними
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = await groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                timeout=30,
+            )
+            raw = response.choices[0].message.content.strip()
+            raw = raw.replace("```json", "").replace("```", "").strip()
+            return json.loads(raw)
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Attempt {attempt + 1}/3 failed: {e}")
+            if attempt < 2:
+                await asyncio.sleep(5)  # Пауза 5 секунд перед следующей попыткой
+
+    raise last_error
 
 
 async def finish_attestation(update: Update, context: ContextTypes.DEFAULT_TYPE):
