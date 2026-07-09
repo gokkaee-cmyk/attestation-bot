@@ -170,8 +170,17 @@ async def confirm_transcript(update: Update, context: ContextTypes.DEFAULT_TYPE)
             position=context.user_data["position_name"],
         )
     except Exception as e:
+        # Если все 3 попытки не помогли — просим повторить голосовой ответ
         logger.error(f"Evaluation error after all retries: {e}")
-        evaluation = {"score": 0, "strengths": "", "weaknesses": "", "recommendation": "Ошибка оценки"}
+        await update.message.reply_text(
+            "⚠️ Произошла техническая ошибка при оценке ответа.\n\n"
+            "🎤 Пожалуйста, повторите ваш ответ голосовым сообщением ещё раз.",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        # Сохраняем транскрипт чтобы не потерять
+        context.user_data["pending_transcript"] = transcript_text
+        return CONFIRM_TRANSCRIPT
+
     context.user_data["answers"].append({
         "competency": item["competency"],
         "question": item["question"],
@@ -211,7 +220,6 @@ async def evaluate_answer(question: str, competency: str, answer: str, position:
 Критерии: 90-100 отличный, 75-89 хороший, 60-74 средний, 40-59 слабый, 0-39 неудовлетворительный.
 Если вопрос не требует примера из жизни — не снижай балл за его отсутствие."""
 
-    # Повторные попытки: 3 раза с паузой между ними
     last_error = None
     for attempt in range(3):
         try:
@@ -228,7 +236,7 @@ async def evaluate_answer(question: str, competency: str, answer: str, position:
             last_error = e
             logger.warning(f"Attempt {attempt + 1}/3 failed: {e}")
             if attempt < 2:
-                await asyncio.sleep(5)  # Пауза 5 секунд перед следующей попыткой
+                await asyncio.sleep(5)
 
     raise last_error
 
