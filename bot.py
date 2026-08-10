@@ -327,7 +327,7 @@ async def confirm_case_transcript(update: Update, context: ContextTypes.DEFAULT_
     zones = evaluation.get("zones", "")
     feedback = evaluation.get("feedback", "")
 
-    feedback_text = f"💬 *Обратная связь по кейсу {idx + 1}:*\n\n"
+    feedback_text = f"💬 *Обратная связь по кейсу {idx + 1}: {score}%*\n\n"
     if strengths:
         feedback_text += f"✅ *Что получилось хорошо:*\n{strengths}\n\n"
     if zones:
