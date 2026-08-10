@@ -241,12 +241,10 @@ async def confirm_transcript(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def start_cases(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начало блока кейсов после основных вопросов"""
     position_key = context.user_data["position_key"]
     cases = get_cases(position_key)
 
     if not cases:
-        # Нет кейсов для этой должности — сразу завершаем
         return await finish_attestation(update, context)
 
     context.user_data["cases"] = cases
@@ -310,7 +308,6 @@ async def confirm_case_transcript(update: Update, context: ContextTypes.DEFAULT_
         context.user_data["pending_case_transcript"] = transcript_text
         return CASE_CONFIRM
 
-    # Сохраняем ответ на кейс
     context.user_data["case_answers"].append({
         "title": case["title"],
         "case": case["case"],
@@ -321,7 +318,6 @@ async def confirm_case_transcript(update: Update, context: ContextTypes.DEFAULT_
         "feedback": evaluation.get("feedback", ""),
     })
 
-    # Отправляем мгновенную обратную связь сотруднику
     score = evaluation["score"]
     strengths = evaluation.get("strengths", "")
     zones = evaluation.get("zones", "")
@@ -400,32 +396,30 @@ async def evaluate_answer(question: str, competency: str, answer: str, position:
 
 async def evaluate_case(case_title: str, case_text: str, reference_answer: str, answer: str, position: str) -> dict:
     prompt = f"""Ты — эксперт по оценке персонала компании Mondelez (МДЛЗ) в сфере FMCG/торговли.
-Оцени ответ сотрудника на практический кейс и дай развивающую обратную связь.
+Оцени ответ сотрудника на практический кейс. Эталонный ответ = 100%.
 
 Должность: {position}
 Название кейса: {case_title}
 Кейс: {case_text}
-
-Эталонный ответ (используй как ориентир, не зачитывай дословно): {reference_answer}
-
+Эталонный ответ (100%): {reference_answer}
 Ответ сотрудника: {answer}
 
-ВАЖНО:
-- Дай развивающую обратную связь — что получилось хорошо, а что можно улучшить
-- НЕ пересказывай эталонный ответ дословно
-- Обратная связь должна помогать сотруднику расти, а не просто оценивать
-- Оценивай логику мышления и практическое понимание, а не точность формулировок
-- Если сотрудник уловил суть — это хороший ответ даже без точных цифр
+ПРАВИЛА ОЦЕНКИ:
+- Эталонный ответ — это 100%. Оценивай насколько ответ сотрудника приближен к эталону
+- Если ответ пустой, бессмысленный или не относится к кейсу — ставь 0-10%
+- Если сотрудник уловил только общую идею без деталей — 20-40%
+- Если раскрыл основные моменты, но не все — 50-70%
+- Если ответ близок к эталону по содержанию и логике — 75-90%
+- 90-100% только если ответ полный и точный как эталон
+- НЕ завышай оценку — будь честным и объективным
 
 Верни результат строго в формате JSON (без markdown, только чистый JSON):
 {{
   "score": <число от 0 до 100>,
-  "strengths": "<что сотрудник сделал хорошо, 2-3 предложения>",
-  "zones": "<зоны роста — чего не хватило в ответе, 2-3 предложения>",
-  "feedback": "<развивающая рекомендация — как улучшить подход, 2-3 предложения>"
-}}
-
-Критерии: 90-100 отличный, 75-89 хороший, 60-74 средний, 40-59 слабый, 0-39 неудовлетворительный."""
+  "strengths": "<что сотрудник сделал правильно относительно эталона, 2-3 предложения>",
+  "zones": "<чего не хватило по сравнению с эталоном, 2-3 предложения>",
+  "feedback": "<развивающая рекомендация как улучшить подход, 2-3 предложения>"
+}}"""
 
     last_error = None
     for attempt in range(3):
@@ -433,7 +427,7 @@ async def evaluate_case(case_title: str, case_text: str, reference_answer: str, 
             response = await openai_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
+                temperature=0.2,
                 timeout=30,
             )
             raw = response.choices[0].message.content.strip()
