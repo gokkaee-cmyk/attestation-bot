@@ -41,7 +41,6 @@ def _build_consolidated(attestations: list) -> str:
     c.alignment = Alignment(horizontal="center", vertical="center")
     ws1.row_dimensions[1].height = 32
 
-    # Добавлен столбец "Ответ" после "%"
     headers = ["ФИО", "Должность", "Компетенция", "%", "Ответ", "Сильные стороны", "Зоны развития", "Рекомендации"]
     col_widths = [30, 28, 26, 8, 50, 40, 40, 45]
     for col_idx, (h, w) in enumerate(zip(headers, col_widths), start=1):
@@ -68,7 +67,6 @@ def _build_consolidated(attestations: list) -> str:
                 by_comp[comp] = []
             by_comp[comp].append(a)
 
-        # Person header row
         ws1.merge_cells(f"A{row}:H{row}")
         header_cell = ws1.cell(row=row, column=1, value=f"{name}  |  {position}")
         header_cell.font = Font(name="Arial", bold=True, size=11, color="FFFFFF")
@@ -82,7 +80,6 @@ def _build_consolidated(attestations: list) -> str:
         for comp, avg in competency_avg.items():
             avg_pct = round(avg)
             comp_answers = by_comp.get(comp, [])
-            # Собираем все ответы по компетенции
             transcripts = " | ".join([a.get("transcript", "") for a in comp_answers if a.get("transcript")])
             strengths = " | ".join([a.get("strengths", "") for a in comp_answers if a.get("strengths")])
             weaknesses = " | ".join([a.get("weaknesses", "") for a in comp_answers if a.get("weaknesses")])
@@ -93,7 +90,7 @@ def _build_consolidated(attestations: list) -> str:
                 position if first_person else "",
                 comp,
                 f"{avg_pct}%",
-                transcripts,      # Ответ сотрудника
+                transcripts,
                 strengths,
                 weaknesses,
                 recommendations,
@@ -119,7 +116,6 @@ def _build_consolidated(attestations: list) -> str:
             row += 1
             first_person = False
 
-        # Average row
         overall = round(att.get("overall_avg", 0))
         avg_fill, avg_font = _score_color(overall)
         for col_idx in range(1, 9):
@@ -137,7 +133,6 @@ def _build_consolidated(attestations: list) -> str:
         ws1.row_dimensions[row].height = 20
         row += 1
 
-        # Spacer
         for col_idx in range(1, 9):
             cell = ws1.cell(row=row, column=col_idx, value="")
             cell.fill = _fill("F2F2F2")
@@ -205,6 +200,102 @@ def _build_consolidated(attestations: list) -> str:
                 cell.font = Font(name="Arial", size=10, bold=True, color=score_font_color)
 
         ws2.row_dimensions[row_idx].height = 30
+
+    # ── Sheet 3: Кейсы ───────────────────────────────────────────────────────
+    ws3 = wb.create_sheet("Кейсы")
+
+    ws3.merge_cells("A1:G1")
+    c3 = ws3["A1"]
+    c3.value = f"РЕЗУЛЬТАТЫ КЕЙСОВ — {datetime.now().strftime('%d.%m.%Y')}"
+    c3.font = Font(name="Arial", bold=True, size=13, color="FFFFFF")
+    c3.fill = _fill("1F3864")
+    c3.alignment = Alignment(horizontal="center", vertical="center")
+    ws3.row_dimensions[1].height = 32
+
+    headers3 = ["ФИО", "Должность", "Кейс", "%", "Ответ сотрудника", "Сильные стороны", "Зоны роста", "Рекомендации"]
+    col_widths3 = [30, 28, 30, 8, 50, 40, 40, 45]
+
+    # Заголовки (8 столбцов)
+    ws3.merge_cells("A1:H1")
+    for col_idx, (h, w) in enumerate(zip(headers3, col_widths3), start=1):
+        cell = ws3.cell(row=2, column=col_idx, value=h)
+        cell.font = Font(name="Arial", bold=True, size=11, color="FFFFFF")
+        cell.fill = _fill("2E75B6")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = _border()
+        ws3.column_dimensions[get_column_letter(col_idx)].width = w
+    ws3.row_dimensions[2].height = 28
+    ws3.freeze_panes = "A3"
+
+    row3 = 3
+    has_cases = False
+
+    for att in attestations:
+        name = att.get("name", "")
+        position = att.get("position_name", "")
+        case_answers = att.get("case_answers", [])
+
+        if not case_answers:
+            continue
+
+        has_cases = True
+
+        # Заголовок сотрудника
+        ws3.merge_cells(f"A{row3}:H{row3}")
+        hdr = ws3.cell(row=row3, column=1, value=f"{name}  |  {position}")
+        hdr.font = Font(name="Arial", bold=True, size=11, color="FFFFFF")
+        hdr.fill = _fill("2E4057")
+        hdr.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+        hdr.border = _border()
+        ws3.row_dimensions[row3].height = 22
+        row3 += 1
+
+        first = True
+        for ca in case_answers:
+            score = ca.get("score", 0)
+            score_fill, score_font_color = _score_color(score)
+
+            row_data = [
+                name if first else "",
+                position if first else "",
+                ca.get("title", ""),
+                f"{score}%",
+                ca.get("transcript", ""),
+                ca.get("strengths", ""),
+                ca.get("zones", ""),
+                ca.get("feedback", ""),
+            ]
+
+            for col_idx, val in enumerate(row_data, start=1):
+                cell = ws3.cell(row=row3, column=col_idx, value=val)
+                cell.font = Font(name="Arial", size=10)
+                cell.fill = _fill("EBF3FB")
+                cell.alignment = Alignment(
+                    horizontal="center" if col_idx == 4 else "left",
+                    vertical="center", wrap_text=True,
+                    indent=0 if col_idx == 4 else 1
+                )
+                cell.border = _border()
+                if col_idx == 4:
+                    cell.fill = score_fill
+                    cell.font = Font(name="Arial", size=10, bold=True, color=score_font_color)
+
+            ws3.row_dimensions[row3].height = 60
+            row3 += 1
+            first = False
+
+        # Разделитель
+        for col_idx in range(1, 9):
+            cell = ws3.cell(row=row3, column=col_idx, value="")
+            cell.fill = _fill("F2F2F2")
+            cell.border = _border()
+        ws3.row_dimensions[row3].height = 6
+        row3 += 1
+
+    # Если ни у кого нет кейсов — пишем заглушку
+    if not has_cases:
+        ws3.cell(row=3, column=1, value="Кейсы не были пройдены ни одним сотрудником")
+        ws3.cell(row=3, column=1).font = Font(name="Arial", size=11, italic=True)
 
     output_path = f"/tmp/consolidated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     wb.save(output_path)
