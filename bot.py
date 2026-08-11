@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 from openai import AsyncOpenAI
 
-from questions import QUESTIONS, get_flat_questions, get_cases
+from questions import QUESTIONS, get_flat_questions, get_cases, get_reference_answer
 from report import generate_report
 from database import save_attestation, get_all_attestations, get_count, clear_attestations
 from consolidated_report import generate_consolidated_report
@@ -210,6 +210,7 @@ async def confirm_transcript(update: Update, context: ContextTypes.DEFAULT_TYPE)
             competency=item["competency"],
             answer=transcript_text,
             position=context.user_data["position_name"],
+            position_key=context.user_data["position_key"],
         )
     except Exception as e:
         logger.error(f"Evaluation error after all retries: {e}")
@@ -345,35 +346,40 @@ async def confirm_case_transcript(update: Update, context: ContextTypes.DEFAULT_
     return CASE_ANSWERING
 
 
-async def evaluate_answer(question: str, competency: str, answer: str, position: str) -> dict:
+async def evaluate_answer(question: str, competency: str, answer: str, position: str, position_key: str = "") -> dict:
+    reference = get_reference_answer(position_key, question) if position_key else ""
+    reference_block = f"\nЭталонный ответ (из реальной аттестации, за который давали 90-100%): {reference}\n" if reference else ""
+
     prompt = f"""Ты — эксперт по оценке персонала компании Mondelez (МДЛЗ).
-Оцени ответ сотрудника строго по тому, что спрашивается в вопросе.
+Оцени ответ сотрудника на аттестационный вопрос.
 
 Должность: {position}
 Компетенция: {competency}
-Вопрос: {question}
+Вопрос: {question}{reference_block}
 Ответ сотрудника: {answer}
 
-СТРОГИЕ ПРАВИЛА — НАРУШАТЬ НЕЛЬЗЯ:
-1. Оценивай ТОЛЬКО соответствие ответа конкретному вопросу
-2. ЗАПРЕЩЕНО снижать балл за то, о чём вопрос НЕ спрашивал
-3. ЗАПРЕЩЕНО требовать примеры, если вопрос их не просил
-4. ЗАПРЕЩЕНО писать "ответ мог бы быть более полным" если сотрудник ответил на вопрос
-5. ЗАПРЕЩЕНО добавлять темы которых нет в вопросе (визуальный мерчандайзинг, управление запасами и т.д. если не спрашивали)
-6. Если сотрудник правильно и по существу ответил на вопрос — ставь 80-90%
-7. Если ответ точный — 85-95%
-8. Балл ниже 60% только если ответ явно неверный или совсем не по теме
-9. Зоны развития — ТОЛЬКО то чего реально не хватило в ответе именно на этот вопрос
+ШКАЛА ОЦЕНКИ:
+- 90-100%: ответ полный и точный, соответствует эталону
+- 80-89%: ответ правильный, основные элементы есть, небольшие неточности
+- 75-79%: ответ верный но краткий, базовое понимание есть
+- 60-74%: частичное понимание, есть ошибки или пропущены ключевые элементы
+- 40-59%: слабый ответ, много пробелов
+- 0-39%: неверный ответ или совсем не по теме вопроса
+
+ПРАВИЛА:
+1. Сравнивай ответ с эталоном — насколько сотрудник раскрыл ключевые элементы
+2. Оценивай ТОЛЬКО соответствие данному вопросу, не добавляй чужие темы
+3. Если сотрудник правильно ответил на вопрос — минимум 80%
+4. Краткий но верный ответ — 75-80%
+5. Ответ не по теме вопроса — 0-10%
 
 Верни результат строго в формате JSON (без markdown, только чистый JSON):
 {{
   "score": <число от 0 до 100>,
-  "strengths": "<что сотрудник ответил правильно по данному вопросу, 1-2 предложения>",
-  "weaknesses": "<только если чего-то реально не хватило в ответе на этот вопрос, иначе пустая строка>",
-  "recommendation": "<конкретная рекомендация строго по теме данного вопроса, 1-2 предложения>"
-}}
-
-Критерии: 90-100 отличный, 80-89 хороший, 65-79 средний, 40-64 слабый, 0-39 неудовлетворительный."""
+  "strengths": "<что сотрудник ответил правильно относительно эталона, 1-2 предложения>",
+  "weaknesses": "<чего не хватило по сравнению с эталоном, или пустая строка если ответ хороший>",
+  "recommendation": "<конкретная рекомендация по данной теме, 1-2 предложения>"
+}}"""
 
     last_error = None
     for attempt in range(3):
