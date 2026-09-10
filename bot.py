@@ -48,7 +48,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     keyboard = [[pos] for pos in POSITIONS.keys()]
     await update.message.reply_text(
-        "👋 Добро пожаловать на аттестацию MDLZ!\n\nПожалуйста, выберите вашу должность:",
+        "👋 MDLZ аттестациясына қош келдіңіз! / Добро пожаловать на аттестацию MDLZ!\n\nЛауазымыңызды таңдаңыз / Пожалуйста, выберите вашу должность:",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
     )
     return SELECT_POSITION
@@ -58,7 +58,7 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     keyboard = [[pos] for pos in POSITIONS.keys()]
     await update.message.reply_text(
-        "🔄 Аттестация сброшена. Начинаем заново!\n\nПожалуйста, выберите вашу должность:",
+        "🔄 Аттестация қайта басталды! / Аттестация сброшена. Начинаем заново!\n\nЛауазымыңызды таңдаңыз / Пожалуйста, выберите вашу должность:",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
     )
     return SELECT_POSITION
@@ -67,7 +67,7 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def select_position(update: Update, context: ContextTypes.DEFAULT_TYPE):
     position_name = update.message.text
     if position_name not in POSITIONS:
-        await update.message.reply_text("Пожалуйста, выберите должность из списка.")
+        await update.message.reply_text("Тізімнен лауазымды таңдаңыз / Пожалуйста, выберите должность из списка.")
         return SELECT_POSITION
     position_key = POSITIONS[position_name]
     context.user_data["position_name"] = position_name
@@ -83,10 +83,10 @@ async def select_position(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def enter_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = update.message.text.strip()
     if len(name) < 3:
-        await update.message.reply_text("Пожалуйста, введите полное ФИО.")
+        await update.message.reply_text("Толық атыңызды енгізіңіз / Пожалуйста, введите полное ФИО.")
         return ENTER_NAME
     context.user_data["name"] = name
-    keyboard = [["✅ Верно", "✏️ Изменить"]]
+    keyboard = [["✅ Дұрыс / Верно", "✏️ Өзгерту / Изменить"]]
     await update.message.reply_text(
         f"Проверьте данные:\n\n👤 ФИО: *{name}*\n💼 Должность: *{context.user_data['position_name']}*",
         parse_mode="Markdown",
@@ -96,8 +96,8 @@ async def enter_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def confirm_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text == "✏️ Изменить":
-        await update.message.reply_text("Введите ФИО заново:", reply_markup=ReplyKeyboardRemove())
+    if update.message.text == "✏️ Өзгерту / Изменить":
+        await update.message.reply_text("Толық атыңызды қайта енгізіңіз / Введите ФИО заново:", reply_markup=ReplyKeyboardRemove())
         return ENTER_NAME
     context.user_data["answers"] = []
     context.user_data["case_answers"] = []
@@ -130,7 +130,7 @@ async def send_next_question(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⏳ Расшифровываю ваш ответ...")
+    await update.message.reply_text("⏳ Жауабыңызды танып жатырмын / Расшифровываю ваш ответ...")
     voice = update.message.voice
     voice_file = await voice.get_file()
     audio_path = Path(f"/tmp/voice_{update.effective_user.id}_{voice.file_id}.ogg")
@@ -145,14 +145,14 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         transcript_text = transcription.text.strip()
     except Exception as e:
         logger.error(f"Whisper error: {e}")
-        await update.message.reply_text("❌ Не удалось расшифровать аудио. Попробуйте ещё раз.")
+        await update.message.reply_text("❌ Аудионы тану мүмкін болмады. Қайталап көріңіз / Не удалось расшифровать аудио. Попробуйте ещё раз.")
         return ANSWERING
     finally:
         audio_path.unlink(missing_ok=True)
     context.user_data["pending_transcript"] = transcript_text
-    keyboard = [["✅ Верно", "🔄 Перезаписать"]]
+    keyboard = [["✅ Дұрыс / Верно", "🔄 Қайта жазу / Перезаписать"]]
     await update.message.reply_text(
-        f"📝 *Расшифровка вашего ответа:*\n\n_{transcript_text}_\n\nВсё верно?",
+        f"📝 *Жауабыңыздың транскрипциясы / Расшифровка вашего ответа:*\n\n_{transcript_text}_\n\nБәрі дұрыс па? / Всё верно?",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
     )
@@ -160,7 +160,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_voice_case(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⏳ Расшифровываю ваш ответ...")
+    await update.message.reply_text("⏳ Жауабыңызды танып жатырмын / Расшифровываю ваш ответ...")
     voice = update.message.voice
     voice_file = await voice.get_file()
     audio_path = Path(f"/tmp/voice_{update.effective_user.id}_{voice.file_id}.ogg")
@@ -175,14 +175,14 @@ async def handle_voice_case(update: Update, context: ContextTypes.DEFAULT_TYPE):
         transcript_text = transcription.text.strip()
     except Exception as e:
         logger.error(f"Whisper error: {e}")
-        await update.message.reply_text("❌ Не удалось расшифровать аудио. Попробуйте ещё раз.")
+        await update.message.reply_text("❌ Аудионы тану мүмкін болмады. Қайталап көріңіз / Не удалось расшифровать аудио. Попробуйте ещё раз.")
         return CASE_ANSWERING
     finally:
         audio_path.unlink(missing_ok=True)
     context.user_data["pending_case_transcript"] = transcript_text
-    keyboard = [["✅ Верно", "🔄 Перезаписать"]]
+    keyboard = [["✅ Дұрыс / Верно", "🔄 Қайта жазу / Перезаписать"]]
     await update.message.reply_text(
-        f"📝 *Расшифровка вашего ответа:*\n\n_{transcript_text}_\n\nВсё верно?",
+        f"📝 *Жауабыңыздың транскрипциясы / Расшифровка вашего ответа:*\n\n_{transcript_text}_\n\nБәрі дұрыс па? / Всё верно?",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True),
     )
@@ -190,7 +190,7 @@ async def handle_voice_case(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def confirm_transcript(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text == "🔄 Перезаписать":
+    if update.message.text == "🔄 Қайта жазу / Перезаписать":
         flat = context.user_data["flat_questions"]
         idx = context.user_data["current_question"]
         await update.message.reply_text(
@@ -203,7 +203,7 @@ async def confirm_transcript(update: Update, context: ContextTypes.DEFAULT_TYPE)
     flat = context.user_data["flat_questions"]
     idx = context.user_data["current_question"]
     item = flat[idx]
-    await update.message.reply_text("🤖 Оцениваю ответ...", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("🤖 Жауапты бағалап жатырмын / Оцениваю ответ...", reply_markup=ReplyKeyboardRemove())
     try:
         evaluation = await evaluate_answer(
             question=item["question"],
@@ -215,8 +215,8 @@ async def confirm_transcript(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         logger.error(f"Evaluation error after all retries: {e}")
         await update.message.reply_text(
-            "⚠️ Произошла техническая ошибка при оценке ответа.\n\n"
-            "🎤 Пожалуйста, повторите ваш ответ голосовым сообщением ещё раз.",
+            "⚠️ Техникалық қате орын алды / Произошла техническая ошибка.\n\n"
+            "🎤 Жауабыңызды қайта жіберіңіз / Пожалуйста, повторите ваш ответ голосовым сообщением ещё раз.",
             reply_markup=ReplyKeyboardRemove(),
         )
         context.user_data["pending_transcript"] = transcript_text
@@ -231,7 +231,7 @@ async def confirm_transcript(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "weaknesses": evaluation.get("weaknesses", ""),
         "recommendation": evaluation["recommendation"],
     })
-    await update.message.reply_text("✅ Ответ принят! Переходим к следующему вопросу.")
+    await update.message.reply_text("✅ Жауап қабылданды! Келесі сұраққа өтеміз / Ответ принят! Переходим к следующему вопросу.")
     context.user_data["current_question"] += 1
     total = len(flat)
     if context.user_data["current_question"] >= total:
@@ -274,7 +274,7 @@ async def send_next_case(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def confirm_case_transcript(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.text == "🔄 Перезаписать":
+    if update.message.text == "🔄 Қайта жазу / Перезаписать":
         cases = context.user_data["cases"]
         idx = context.user_data["current_case"]
         await update.message.reply_text(
@@ -289,7 +289,7 @@ async def confirm_case_transcript(update: Update, context: ContextTypes.DEFAULT_
     idx = context.user_data["current_case"]
     case = cases[idx]
 
-    await update.message.reply_text("🤖 Анализирую ваш ответ на кейс...", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("🤖 Кейске жауабыңызды талдап жатырмын / Анализирую ваш ответ на кейс...", reply_markup=ReplyKeyboardRemove())
 
     try:
         evaluation = await evaluate_case(
@@ -302,8 +302,8 @@ async def confirm_case_transcript(update: Update, context: ContextTypes.DEFAULT_
     except Exception as e:
         logger.error(f"Case evaluation error: {e}")
         await update.message.reply_text(
-            "⚠️ Произошла техническая ошибка при оценке кейса.\n\n"
-            "🎤 Пожалуйста, повторите ваш ответ голосовым сообщением ещё раз.",
+            "⚠️ Техникалық қате орын алды / Произошла техническая ошибка при оценке кейса.\n\n"
+            "🎤 Жауабыңызды қайта жіберіңіз / Пожалуйста, повторите ваш ответ голосовым сообщением ещё раз.",
             reply_markup=ReplyKeyboardRemove(),
         )
         context.user_data["pending_case_transcript"] = transcript_text
@@ -594,18 +594,18 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_text_during_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🎤 Пожалуйста, отвечайте *только голосовым сообщением*.", parse_mode="Markdown")
+    await update.message.reply_text("🎤 Тек дауыстық хабарлама арқылы жауап беріңіз / Пожалуйста, отвечайте *только голосовым сообщением*.", parse_mode="Markdown")
     return ANSWERING
 
 
 async def handle_text_during_case(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🎤 Пожалуйста, отвечайте *только голосовым сообщением*.", parse_mode="Markdown")
+    await update.message.reply_text("🎤 Тек дауыстық хабарлама арқылы жауап беріңіз / Пожалуйста, отвечайте *только голосовым сообщением*.", parse_mode="Markdown")
     return CASE_ANSWERING
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text("Аттестация отменена. Для начала нажмите /start", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("Аттестация тоқтатылды. Бастау үшін /start басыңыз / Аттестация отменена. Для начала нажмите /start", reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 
