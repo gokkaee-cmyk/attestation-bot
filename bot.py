@@ -73,7 +73,7 @@ async def select_position(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["position_name"] = position_name
     context.user_data["position_key"] = position_key
     await update.message.reply_text(
-        f"✅ Должность: *{position_name}*\n\nВведите ваше ФИО:",
+        f"✅ Должность: *{position_name}*\n\nТолық атыңызды енгізіңіз / Введите ваше ФИО:",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardRemove(),
     )
