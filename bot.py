@@ -706,8 +706,6 @@ async def cases_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image_file = CASE_IMAGES.get((pos_key, idx))
         if image_file:
             image_path = IMAGES_DIR / image_file
-            # Меняем кнопку сообщения на заглушку пока грузим
-            await query.edit_message_text("⏳ Загружаю кейс...", reply_markup=None)
             with open(image_path, 'rb') as photo:
                 await context.bot.send_photo(
                     chat_id=update.effective_chat.id,
@@ -719,6 +717,7 @@ async def cases_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown",
                 reply_markup=keyboard,
             )
+            await query.message.delete()
         else:
             await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
