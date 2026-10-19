@@ -706,14 +706,19 @@ async def cases_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image_file = CASE_IMAGES.get((pos_key, idx))
         if image_file:
             image_path = IMAGES_DIR / image_file
-            # Редактируем текущее сообщение на текст кейса с кнопками
-            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
-            # Отправляем картинку отдельным сообщением
+            # Меняем кнопку сообщения на заглушку пока грузим
+            await query.edit_message_text("⏳ Загружаю кейс...", reply_markup=None)
             with open(image_path, 'rb') as photo:
                 await context.bot.send_photo(
                     chat_id=update.effective_chat.id,
                     photo=photo,
                 )
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=text,
+                parse_mode="Markdown",
+                reply_markup=keyboard,
+            )
         else:
             await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
