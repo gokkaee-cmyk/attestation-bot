@@ -275,8 +275,23 @@ async def send_next_case(update: Update, context: ContextTypes.DEFAULT_TYPE):
     idx = context.user_data["current_case"]
     total = len(cases)
     case = cases[idx]
+    position_key = context.user_data["position_key"]
+
+    # Убираем markdown-таблицу из текста кейса (она будет картинкой)
+    case_text = case['case']
+    if '|' in case_text:
+        lines = case_text.split('\n')
+        case_text = '\n'.join(line for line in lines if not line.strip().startswith('|'))
+
+    # Отправляем картинку-таблицу если есть
+    image_file = CASE_IMAGES.get((position_key, idx))
+    if image_file:
+        image_path = IMAGES_DIR / image_file
+        with open(image_path, 'rb') as photo:
+            await update.message.reply_photo(photo=photo)
+
     await update.message.reply_text(
-        f"📌 Кейс {idx + 1} из {total}\n\n*{case['title']}*\n\n{case['case']}\n\n🎤 Ответьте голосовым сообщением.",
+        f"📌 Кейс {idx + 1} из {total}\n\n*{case['title']}*\n\n{case_text}\n\n🎤 Ответьте голосовым сообщением.",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardRemove(),
     )
