@@ -43,6 +43,15 @@ POSITIONS = {
     "ТМ МТ (Территориальный менеджер МТ)": "tm_mt",
 }
 
+# Картинки-таблицы для кейсов (pos_key, idx) -> имя файла в папке images/
+CASE_IMAGES = {
+    ("tm_tt", 1): "tm_tt_case2_table.png",
+    ("ts_mt", 1): "ts_mt_case2_table.png",
+    ("tm_mt", 1): "tm_mt_case2_table.png",
+}
+
+IMAGES_DIR = Path(__file__).parent / "images"
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -676,10 +685,16 @@ async def cases_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         case = cases[idx]
         pos_name = next(k for k, v in POSITIONS.items() if v == pos_key)
 
+        # Убираем markdown-таблицу из текста кейса (она будет картинкой)
+        case_text = case['case']
+        if '|' in case_text:
+            lines = case_text.split('\n')
+            case_text = '\n'.join(line for line in lines if not line.strip().startswith('|'))
+
         text = (
             f"📌 *{case['title']}*\n"
             f"_{pos_name}_\n\n"
-            f"{case['case']}"
+            f"{case_text}"
         )
 
         keyboard = InlineKeyboardMarkup([
@@ -688,7 +703,23 @@ async def cases_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("◀️ К должностям", callback_data="cases_back")],
         ])
 
-        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
+        image_file = CASE_IMAGES.get((pos_key, idx))
+        if image_file:
+            image_path = IMAGES_DIR / image_file
+            await query.message.delete()
+            with open(image_path, 'rb') as photo:
+                await context.bot.send_photo(
+                    chat_id=update.effective_chat.id,
+                    photo=photo,
+                )
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=text,
+                parse_mode="Markdown",
+                reply_markup=keyboard,
+            )
+        else:
+            await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
     # Уровень 3 — эталонный ответ
     elif data.startswith("cases_ans:"):
