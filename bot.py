@@ -6,10 +6,10 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
-    filters, ContextTypes, ConversationHandler
+    filters, ContextTypes, ConversationHandler, CallbackQueryHandler
 )
 from openai import AsyncOpenAI
 
@@ -614,18 +614,116 @@ async def show_cases(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ У вас нет доступа к этой команде.")
         return
 
-    lines = ["📋 *Кейсы по должностям*\n"]
+    keyboard = []
     for pos_name, pos_key in POSITIONS.items():
         cases = get_cases(pos_key)
-        lines.append(f"*{pos_name}*")
-        if not cases:
-            lines.append("  — кейсов нет\n")
-        else:
-            for i, case in enumerate(cases, 1):
-                lines.append(f"  {i}. {case['title']}")
-            lines.append("")
+        count = len(cases)
+        label = f"{pos_name} ({count} кейса)" if count else f"{pos_name} (нет кейсов)"
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"cases_pos:{pos_key}")])
 
-    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+    await update.message.reply_text(
+        "📋 *Кейсы по должностям*\n\nВыберите должность:",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+
+
+async def cases_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if update.effective_chat.id != ADMIN_CHAT_ID:
+        await query.edit_message_text("⛔ У вас нет доступа.")
+        return
+
+    data = query.data
+
+    # Уровень 1 — выбор должности → показываем список кейсов
+    if data.startswith("cases_pos:"):
+        pos_key = data.split(":", 1)[1]
+        cases = get_cases(pos_key)
+        pos_name = next(k for k, v in POSITIONS.items() if v == pos_key)
+
+        if not cases:
+            await query.edit_message_text(
+                f"*{pos_name}*\n\n— кейсов нет",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("◀️ Назад", callback_data="cases_back")
+                ]]),
+            )
+            return
+
+        keyboard = []
+        for i, case in enumerate(cases):
+            keyboard.append([InlineKeyboardButton(
+                f"{i+1}. {case['title']}",
+                callback_data=f"cases_view:{pos_key}:{i}"
+            )])
+        keyboard.append([InlineKeyboardButton("◀️ Назад", callback_data="cases_back")])
+
+        await query.edit_message_text(
+            f"📋 *{pos_name}*\n\nВыберите кейс:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    # Уровень 2 — просмотр конкретного кейса
+    elif data.startswith("cases_view:"):
+        _, pos_key, idx_str = data.split(":", 2)
+        idx = int(idx_str)
+        cases = get_cases(pos_key)
+        case = cases[idx]
+        pos_name = next(k for k, v in POSITIONS.items() if v == pos_key)
+
+        text = (
+            f"📌 *{case['title']}*\n"
+            f"_{pos_name}_\n\n"
+            f"{case['case']}"
+        )
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💡 Эталонный ответ", callback_data=f"cases_ans:{pos_key}:{idx}")],
+            [InlineKeyboardButton("◀️ К списку кейсов", callback_data=f"cases_pos:{pos_key}")],
+            [InlineKeyboardButton("◀️ К должностям", callback_data="cases_back")],
+        ])
+
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
+
+    # Уровень 3 — эталонный ответ
+    elif data.startswith("cases_ans:"):
+        _, pos_key, idx_str = data.split(":", 2)
+        idx = int(idx_str)
+        cases = get_cases(pos_key)
+        case = cases[idx]
+
+        text = (
+            f"💡 *Эталонный ответ*\n"
+            f"_{case['title']}_\n\n"
+            f"{case['reference_answer']}"
+        )
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ Назад к кейсу", callback_data=f"cases_view:{pos_key}:{idx}")],
+            [InlineKeyboardButton("◀️ К должностям", callback_data="cases_back")],
+        ])
+
+        await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
+
+    # Назад к списку должностей
+    elif data == "cases_back":
+        keyboard = []
+        for pos_name, pos_key in POSITIONS.items():
+            cases = get_cases(pos_key)
+            count = len(cases)
+            label = f"{pos_name} ({count} кейса)" if count else f"{pos_name} (нет кейсов)"
+            keyboard.append([InlineKeyboardButton(label, callback_data=f"cases_pos:{pos_key}")])
+
+        await query.edit_message_text(
+            "📋 *Кейсы по должностям*\n\nВыберите должность:",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
 
 
 def main():
@@ -660,6 +758,7 @@ def main():
     app.add_handler(CommandHandler("clear", clear_db))
     app.add_handler(CommandHandler("status", status))
     app.add_handler(CommandHandler("cases", show_cases))
+    app.add_handler(CallbackQueryHandler(cases_callback, pattern="^cases_"))
     logger.info("Bot started!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
