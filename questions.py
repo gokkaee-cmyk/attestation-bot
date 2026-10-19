@@ -557,13 +557,14 @@ CASES = {
 }
 
 
-def get_flat_questions(position_key: str) -> list[str]:
-    """Return a flat list of all questions for a given position key."""
+def get_flat_questions(position_key: str) -> list[dict]:
+    """Return a flat list of dicts with 'question' and 'competency' for a given position key."""
     position_data = QUESTIONS.get(position_key, {})
     competencies = position_data.get("competencies", {})
     result = []
-    for questions in competencies.values():
-        result.extend(questions)
+    for competency_name, questions in competencies.items():
+        for q in questions:
+            result.append({"question": q, "competency": competency_name})
     return result
 
 
