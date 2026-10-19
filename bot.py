@@ -609,6 +609,25 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def show_cases(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.id != ADMIN_CHAT_ID:
+        await update.message.reply_text("⛔ У вас нет доступа к этой команде.")
+        return
+
+    lines = ["📋 *Кейсы по должностям*\n"]
+    for pos_name, pos_key in POSITIONS.items():
+        cases = get_cases(pos_key)
+        lines.append(f"*{pos_name}*")
+        if not cases:
+            lines.append("  — кейсов нет\n")
+        else:
+            for i, case in enumerate(cases, 1):
+                lines.append(f"  {i}. {case['title']}")
+            lines.append("")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     conv_handler = ConversationHandler(
@@ -640,6 +659,7 @@ def main():
     app.add_handler(CommandHandler("report", send_report))
     app.add_handler(CommandHandler("clear", clear_db))
     app.add_handler(CommandHandler("status", status))
+    app.add_handler(CommandHandler("cases", show_cases))
     logger.info("Bot started!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
