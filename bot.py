@@ -717,7 +717,6 @@ async def cases_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown",
                 reply_markup=keyboard,
             )
-            await query.message.delete()
         else:
             await query.edit_message_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
