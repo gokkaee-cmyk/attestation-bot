@@ -555,3 +555,22 @@ CASES = {
         },
     ],
 }
+
+
+def get_flat_questions(position_key: str) -> list[str]:
+    position_data = QUESTIONS.get(position_key, {})
+    competencies = position_data.get("competencies", {})
+    result = []
+    for questions in competencies.values():
+        result.extend(questions)
+    return result
+
+
+def get_cases(position_key: str) -> list[dict]:
+    return CASES.get(position_key, [])
+
+
+def get_reference_answer(position_key: str, question: str) -> str | None:
+    position_data = QUESTIONS.get(position_key, {})
+    answers = position_data.get("reference_answers", {})
+    return answers.get(question)
