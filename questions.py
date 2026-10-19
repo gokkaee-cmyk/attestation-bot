@@ -354,7 +354,7 @@ CASES = {
         },
         {
             "title": "Кейс 2 — Рост базы без роста активного покрытия",
-            "case": """Структура клиентской базы (см. таблицу на картинке выше):
+            "case": """Структура клиентской базы:
 
 | Группа точек | Количество | Средний заказ | Результативность визитов | Характеристика |
 |---|---|---|---|---|
@@ -438,7 +438,7 @@ CASES = {
             "title": "Кейс 2 — Все магазины посетить невозможно",
             "case": """Команда супервайзера обслуживает 30 магазинов современного канала. В штате шесть мерчандайзеров, но на ближайшие три недели два сотрудника выбывают. Возможности привлечь временных сотрудников или увеличить количество рабочих часов нет. Оставшиеся четыре мерчандайзера физически могут качественно обслуживать не более 20 магазинов в неделю.
 
-Магазины отличаются по потенциалу (см. таблицу на картинке выше):
+Магазины отличаются по потенциалу:
 
 | Группа | Количество | Доля продаж территории | Текущая ситуация |
 |---|---|---|---|
@@ -515,7 +515,7 @@ CASES = {
 
 На основании этих данных сеть предлагает: предоставить скидку 8%, снизить регулярную розничную цену, вывести четыре SKU Mondelez, передать два фейсинга конкуренту X.
 
-ТМ располагает данными Nielsen по региону за последние три месяца (см. таблицу на картинке выше):
+ТМ располагает данными Nielsen по региону за последние три месяца:
 
 | Показатель | Категория | Mondelez | Конкурент X |
 |---|---|---|---|
@@ -558,6 +558,7 @@ CASES = {
 
 
 def get_flat_questions(position_key: str) -> list[str]:
+    """Return a flat list of all questions for a given position key."""
     position_data = QUESTIONS.get(position_key, {})
     competencies = position_data.get("competencies", {})
     result = []
@@ -567,10 +568,12 @@ def get_flat_questions(position_key: str) -> list[str]:
 
 
 def get_cases(position_key: str) -> list[dict]:
+    """Return list of cases for a given position key."""
     return CASES.get(position_key, [])
 
 
 def get_reference_answer(position_key: str, question: str) -> str | None:
+    """Return reference answer for a given question, if exists."""
     position_data = QUESTIONS.get(position_key, {})
     answers = position_data.get("reference_answers", {})
     return answers.get(question)
